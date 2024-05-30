@@ -18,31 +18,65 @@ using System.Collections.Concurrent;
 
 namespace MareSynchronosServer.Hubs;
 
+// This class requires the user to be authenticated
 [Authorize(Policy = "Authenticated")]
 public partial class MareHub : Hub<IMareHub>, IMareHub
 {
+    // A thread-safe dictionary to store user connections
     private static readonly ConcurrentDictionary<string, string> _userConnections = new(StringComparer.Ordinal);
+    
+    // Metrics for monitoring the Mare system
     private readonly MareMetrics _mareMetrics;
+    
+    // Service for getting system information
     private readonly SystemInfoService _systemInfoService;
+    
+    // Accessor to get HTTP context information
     private readonly IHttpContextAccessor _contextAccessor;
+    
+    // Logger specific to MareHub
     private readonly MareHubLogger _logger;
+    
+    // Name of the shard
     private readonly string _shardName;
+    
+    // Maximum number of groups a user can create
     private readonly int _maxExistingGroupsByUser;
+    
+    // Maximum number of groups a user can join
     private readonly int _maxJoinedGroupsByUser;
+    
+    // Maximum number of users a group can have
     private readonly int _maxGroupUserCount;
+    
+    // Redis database for caching
     private readonly IRedisDatabase _redis;
+    
+    // Service for managing online synced pairs
     private readonly OnlineSyncedPairCacheService _onlineSyncedPairCacheService;
+    
+    // Census for Mare system
     private readonly MareCensus _mareCensus;
+    
+    // Address of the file server
     private readonly Uri _fileServerAddress;
+    
+    // Expected version of the client
     private readonly Version _expectedClientVersion;
+    
+    // Lazy initialization of MareDbContext
     private readonly Lazy<MareDbContext> _dbContextLazy;
+    
+    // Property to get the MareDbContext
     private MareDbContext DbContext => _dbContextLazy.Value;
 
+    // Constructor for MareHub
     public MareHub(MareMetrics mareMetrics,
         IDbContextFactory<MareDbContext> mareDbContextFactory, ILogger<MareHub> logger, SystemInfoService systemInfoService,
         IConfigurationService<ServerConfiguration> configuration, IHttpContextAccessor contextAccessor,
         IRedisDatabase redisDb, OnlineSyncedPairCacheService onlineSyncedPairCacheService, MareCensus mareCensus)
     {
+        // Assigning values to the fields
         _mareMetrics = mareMetrics;
         _systemInfoService = systemInfoService;
         _shardName = configuration.GetValue<string>(nameof(ServerConfiguration.ShardName));
@@ -58,6 +92,7 @@ public partial class MareHub : Hub<IMareHub>, IMareHub
         _logger = new MareHubLogger(this, logger);
         _dbContextLazy = new Lazy<MareDbContext>(() => mareDbContextFactory.CreateDbContext());
     }
+
 
     protected override void Dispose(bool disposing)
     {

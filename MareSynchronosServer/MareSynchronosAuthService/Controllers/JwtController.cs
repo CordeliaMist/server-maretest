@@ -29,13 +29,14 @@ public class JwtController : Controller
     private readonly IRedisDatabase _redis;
     private readonly GeoIPService _geoIPProvider;
     private readonly SecretKeyAuthenticatorService _secretKeyAuthenticatorService;
-
-    public JwtController(ILogger<JwtController> logger,
+// Constructor for JwtController
+public JwtController(ILogger<JwtController> logger,
         IHttpContextAccessor accessor, MareDbContext mareDbContext,
         SecretKeyAuthenticatorService secretKeyAuthenticatorService,
         IConfigurationService<AuthServiceConfiguration> configuration,
         IRedisDatabase redisDb, GeoIPService geoIPProvider)
     {
+        // Initialize private fields with the provided services
         _logger = logger;
         _accessor = accessor;
         _redis = redisDb;
@@ -45,23 +46,28 @@ public class JwtController : Controller
         _configuration = configuration;
     }
 
+    // Endpoint to create a new token
     [AllowAnonymous]
     [HttpPost(MareAuth.Auth_CreateIdent)]
     public async Task<IActionResult> CreateToken(string auth, string charaIdent)
     {
+        // Call internal authentication method
         return await AuthenticateInternal(auth, charaIdent).ConfigureAwait(false);
     }
 
+    // Endpoint to renew an existing token
     [Authorize(Policy = "Authenticated")]
     [HttpGet("renewToken")]
     public async Task<IActionResult> RenewToken()
     {
         try
         {
+            // Extract user claims from the HttpContext
             var uid = HttpContext.User.Claims.Single(p => string.Equals(p.Type, MareClaimTypes.Uid, StringComparison.Ordinal))!.Value;
             var ident = HttpContext.User.Claims.Single(p => string.Equals(p.Type, MareClaimTypes.CharaIdent, StringComparison.Ordinal))!.Value;
             var alias = HttpContext.User.Claims.SingleOrDefault(p => string.Equals(p.Type, MareClaimTypes.Alias))?.Value ?? string.Empty;
 
+            // Check if the user is banned
             if (await _mareDbContext.Auth.Where(u => u.UserUID == uid || u.PrimaryUserUID == uid).AnyAsync(a => a.IsBanned))
             {
                 await EnsureBan(uid, ident);
@@ -69,16 +75,19 @@ public class JwtController : Controller
                 return Unauthorized("You are permanently banned.");
             }
 
+            // Check if the character is banned
             if (await IsIdentBanned(uid, ident))
             {
                 return Unauthorized("Your character is banned from using the service.");
             }
 
+            // Log the successful token renewal
             _logger.LogInformation("RenewToken:SUCCESS:{id}:{ident}", uid, ident);
             return await CreateJwtFromId(uid, ident, alias);
         }
         catch (Exception ex)
         {
+            // Log the error and return an Unauthorized result
             _logger.LogError(ex, "RenewToken:FAILURE");
             return Unauthorized("Unknown error while renewing authentication token");
         }
